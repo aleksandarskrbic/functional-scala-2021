@@ -1,9 +1,9 @@
 import Dependencies.Libraries._
 
-name         := "functional-scala-2021"
-version      := "0.1.0"
+name := "functional-scala-2021"
+version := "0.1.0"
 scalaVersion := "2.13.7"
-cancelable   := true
+cancelable := true
 
 lazy val `embedded-kafka` = project
   .in(file("embedded-kafka"))
@@ -28,7 +28,7 @@ lazy val `enrichment-service` = project
   .dependsOn(protocol)
   .settings(
     libraryDependencies ++=
-      zio ++ zioKafka ++ zioHttp ++ zioLogging ++ logging ++ zioConfig ++ zioJson ++ jackson
+      zio ++ zioKafka ++ zioHttp ++ zioLogging ++ logging ++ zioConfig ++ zioJson ++ jackson ++ sttp
   )
 
 lazy val `ingestion-service` = project
@@ -44,7 +44,7 @@ lazy val `query-service` = project
   .dependsOn(protocol)
   .settings(
     libraryDependencies ++=
-      zio ++ zioHttp ++ zioLogging ++ logging ++ zioConfig ++ zioJson
+      zio ++ zioHttp ++ zioLogging ++ logging ++ zioConfig ++ zioJson ++ sttp
   )
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmtAll")

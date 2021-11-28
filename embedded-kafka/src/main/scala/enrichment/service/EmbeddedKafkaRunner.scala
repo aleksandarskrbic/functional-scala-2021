@@ -8,7 +8,8 @@ object EmbeddedKafkaRunner extends App with EmbeddedKafka {
 
   val port = 9092
 
-  implicit val config = EmbeddedKafkaConfig(kafkaPort = port, zooKeeperPort = 5555)
+  implicit val config =
+    EmbeddedKafkaConfig(kafkaPort = port, zooKeeperPort = 5555)
 
   val embeddedKafkaServer = EmbeddedKafka.start()
 
