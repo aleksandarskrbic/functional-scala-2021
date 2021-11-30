@@ -39,12 +39,4 @@ lazy val `ingestion-service` = project
       zio ++ zioKafka ++ zioHttp ++ zioLogging ++ logging ++ zioConfig ++ zioJson ++ jackson
   )
 
-lazy val `query-service` = project
-  .in(file("query-service"))
-  .dependsOn(protocol)
-  .settings(
-    libraryDependencies ++=
-      zio ++ zioHttp ++ zioLogging ++ logging ++ zioConfig ++ zioJson ++ sttp
-  )
-
 addCommandAlias("fmt", "all scalafmtSbt scalafmtAll")

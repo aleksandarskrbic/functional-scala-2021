@@ -12,6 +12,7 @@ import enrichment.service.config.AppConfig
 import enrichment.service.http.EnrichmentService
 import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.duration._
 
 class EnrichmentProcessor(
     consumerConfig: AppConfig.Consumer,
@@ -19,7 +20,7 @@ class EnrichmentProcessor(
     enrichmentService: EnrichmentService
 ) {
 
-  def start(): ZIO[Clock with Blocking, Throwable, Unit] =
+  def start: ZIO[Clock with Blocking, Throwable, Unit] =
     (for {
       consumer <- Consumer.make(consumerConfig.toConsumerSettings)
       producer <- Producer.make(producerConfig.toProducerSettings)
@@ -38,6 +39,7 @@ class EnrichmentProcessor(
                     transactionRaw.country
                   )
                   .mapError(msg => new RuntimeException(msg))
+                  .retry(Schedule.exponential(50.millis) && Schedule.recurs(4))
                 country = enrichmentPayload.toCountry(transactionRaw.country)
                 transactionEnriched = toTransactionEnriched(
                   transactionRaw,

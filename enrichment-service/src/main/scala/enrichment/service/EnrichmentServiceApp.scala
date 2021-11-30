@@ -17,7 +17,7 @@ object EnrichmentServiceApp extends zio.App {
             appConfig.consumer,
             appConfig.producer,
             new EnrichmentService(appConfig.enrichment, httpClient)
-          ).start()
+          ).start
         }
       }
       .exitCode
