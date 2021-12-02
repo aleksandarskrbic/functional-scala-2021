@@ -10,7 +10,7 @@ import zio.kafka.consumer.ConsumerSettings
 import zio.kafka.producer.ProducerSettings
 import scala.concurrent.duration.DurationInt
 
-final case class AppConfig(
+case class AppConfig(
     consumer: AppConfig.Consumer,
     producer: AppConfig.Producer,
     enrichment: AppConfig.Enrichment
@@ -19,11 +19,7 @@ final case class AppConfig(
 object AppConfig {
   private val descriptor = DeriveConfigDescriptor.descriptor[AppConfig]
 
-  final case class Consumer(
-      bootstrapServers: String,
-      topic: String,
-      groupId: String
-  ) {
+  case class Consumer(bootstrapServers: String, topic: String, groupId: String) {
     def toConsumerSettings: ConsumerSettings =
       ConsumerSettings(bootstrapServers.split(",").toList)
         .withGroupId(groupId)
@@ -34,22 +30,17 @@ object AppConfig {
         .withProperty("auto.offset.reset", "earliest")
   }
 
-  final case class Producer(bootstrapServers: String, topic: String) {
+  case class Producer(bootstrapServers: String, topic: String) {
     def toProducerSettings: ProducerSettings = ProducerSettings(
       bootstrapServers.split(",").toList
     )
   }
 
-  final case class Enrichment(url: String)
+  case class Enrichment(url: String)
 
-  def load(): Task[AppConfig] =
-    for {
-      rawConfig <- ZIO.effect(
-        ConfigFactory.load().getConfig("enrichment-service")
-      )
-      configSource <- ZIO.fromEither(
-        TypesafeConfigSource.fromTypesafeConfig(rawConfig)
-      )
-      config <- ZIO.fromEither(read(descriptor.from(configSource)))
-    } yield config
+  lazy val live = (for {
+    rawConfig <- ZIO.effect(ConfigFactory.load().getConfig("enrichment-service"))
+    configSource <- ZIO.fromEither(TypesafeConfigSource.fromTypesafeConfig(rawConfig))
+    config <- ZIO.fromEither(read(descriptor.from(configSource)))
+  } yield config).toLayer.orDie
 }

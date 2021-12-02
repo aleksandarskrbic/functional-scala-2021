@@ -17,53 +17,67 @@ import zio.duration._
 class EnrichmentProcessor(
     consumerConfig: AppConfig.Consumer,
     producerConfig: AppConfig.Producer,
+    consumer: Consumer,
+    producer: Producer,
     enrichmentService: EnrichmentService
 ) {
-
   def start: ZIO[Clock with Blocking, Throwable, Unit] =
-    (for {
-      consumer <- Consumer.make(consumerConfig.toConsumerSettings)
-      producer <- Producer.make(producerConfig.toProducerSettings)
-    } yield consumer -> producer).use { case (consumer, producer) =>
-      consumer
-        .subscribeAnd(Subscription.topics(consumerConfig.topic))
-        .plainStream(Serde.long, Serde.string)
-        .mapMPar(4) { committableRecord =>
+    consumer
+      .subscribeAnd(Subscription.topics(consumerConfig.topic))
+      .plainStream(Serde.long, Serde.string)
+      .mapMPar(8) { committableRecord =>
+        ZIO.effectTotal {
           val parsed = committableRecord.value.fromJson[TransactionRaw]
-
-          parsed match {
-            case Right(transactionRaw) =>
-              for {
-                enrichmentPayload <- enrichmentService
-                  .fetchCountryDetails(
-                    transactionRaw.country
-                  )
-                  .mapError(msg => new RuntimeException(msg))
-                  .retry(Schedule.exponential(50.millis) && Schedule.recurs(4))
-                country = enrichmentPayload.toCountry(transactionRaw.country)
-                transactionEnriched = toTransactionEnriched(
-                  transactionRaw,
-                  country
-                )
-                _ <- producer.produceAsync(
-                  producerConfig.topic,
-                  transactionEnriched.userId,
-                  transactionEnriched.toJsonPretty,
-                  Serde.long,
-                  Serde.string
-                )
-              } yield committableRecord.offset
-            case Left(_) => ZIO.succeed(committableRecord.offset)
-          }
+          (committableRecord.offset, parsed)
         }
-        .aggregateAsync(Consumer.offsetBatches)
-        .mapM(_.commit)
-        .runDrain
-    }
+      }
+      .mapMPar(8) { case (offset, parsed) =>
+        parsed match {
+          case Right(transactionRaw) =>
+            for {
+              transactionEnriched <- enrichTransaction(transactionRaw)
+                .mapError(msg => new RuntimeException(msg))
+                .retry(Schedule.exponential(50.millis) && Schedule.recurs(4))
+              _ <- producer.produceAsync(
+                producerConfig.topic,
+                transactionEnriched.userId,
+                transactionEnriched.toJsonPretty,
+                Serde.long,
+                Serde.string
+              )
+            } yield offset
+          case Left(_) => ZIO.succeed(offset)
+        }
+      }
+      .aggregateAsync(Consumer.offsetBatches)
+      .mapM(_.commit)
+      .runDrain
 
-  private def toTransactionEnriched(
-      transactionRaw: TransactionRaw,
-      country: Country
-  ) =
+  private def enrichTransaction(transactionRaw: TransactionRaw) =
+    enrichmentService
+      .fetchCountryDetails(transactionRaw.country)
+      .map { enrichmentPayload =>
+        toTransactionEnriched(
+          transactionRaw,
+          enrichmentPayload.toCountry(transactionRaw.country)
+        )
+      }
+
+  private def toTransactionEnriched(transactionRaw: TransactionRaw, country: Country) =
     TransactionEnriched(transactionRaw.userId, country, transactionRaw.amount)
+}
+
+object EnrichmentProcessor {
+  lazy val live = (for {
+    appConfig <- ZIO.service[AppConfig]
+    consumer <- ZIO.service[Consumer]
+    producer <- ZIO.service[Producer]
+    enrichmentService <- ZIO.service[EnrichmentService]
+  } yield new EnrichmentProcessor(
+    appConfig.consumer,
+    appConfig.producer,
+    consumer,
+    producer,
+    enrichmentService
+  )).toLayer
 }

@@ -36,8 +36,8 @@ object AppConfig {
         .withProperty("auto.offset.reset", "earliest")
   }
 
-  def load(): Task[AppConfig] =
-    for {
+  lazy val live: ZLayer[Any, Nothing, Has[AppConfig]] =
+    (for {
       rawConfig <- ZIO.effect(
         ConfigFactory.load().getConfig("aggregation-service")
       )
@@ -45,7 +45,5 @@ object AppConfig {
         TypesafeConfigSource.fromTypesafeConfig(rawConfig)
       )
       config <- ZIO.fromEither(read(descriptor.from(configSource)))
-    } yield config
-
-  val live = load().toLayer.orDie
+    } yield config).toLayer.orDie
 }

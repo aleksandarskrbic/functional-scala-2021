@@ -12,38 +12,42 @@ import aggregation.service.store.TotalAmountByUserStore.TotalAmountByUser
 
 class AggregationProcessor(
     consumerConfig: AppConfig.Consumer,
+    consumer: Consumer,
     totalAmountByCountryStore: Store[String, TransactionEnriched, TotalAmountByCountry],
     totalAmountByUserStore: Store[Long, TransactionEnriched, TotalAmountByUser]
 ) {
-
   def start() =
-    Consumer.make(consumerConfig.toConsumerSettings).use { consumer =>
-      consumer
-        .subscribeAnd(Subscription.topics(consumerConfig.topic))
-        .plainStream(Serde.long, Serde.string)
-        .mapMPar(4) { committableRecord =>
-          val parsed = committableRecord.value.fromJson[TransactionEnriched]
+    consumer
+      .subscribeAnd(Subscription.topics(consumerConfig.topic))
+      .plainStream(Serde.long, Serde.string)
+      .mapMPar(4) { committableRecord =>
+        val parsed = committableRecord.value.fromJson[TransactionEnriched]
 
-          parsed match {
-            case Right(transaction) =>
-              totalAmountByUserStore
-                .append(transaction.userId, transaction)
-                .zipPar(totalAmountByCountryStore.append(transaction.country.name, transaction))
-                .as(committableRecord.offset)
-            case Left(_) => ZIO.succeed(committableRecord.offset)
-          }
+        parsed match {
+          case Right(transaction) =>
+            totalAmountByUserStore
+              .append(transaction.userId, transaction)
+              .zipPar(totalAmountByCountryStore.append(transaction.country.name, transaction))
+              .as(committableRecord.offset)
+          case Left(_) => ZIO.succeed(committableRecord.offset)
         }
-        .aggregateAsync(Consumer.offsetBatches)
-        .mapM(_.commit)
-        .runDrain
-    }
+      }
+      .aggregateAsync(Consumer.offsetBatches)
+      .mapM(_.commit)
+      .runDrain
 }
 
 object AggregationProcessor {
   val live =
     (for {
       appConfig <- ZIO.service[AppConfig]
+      consumer <- ZIO.service[Consumer]
       totalAmountByCountryStore <- ZIO.service[Store[String, TransactionEnriched, TotalAmountByCountry]]
       totalAmountByUserStore <- ZIO.service[Store[Long, TransactionEnriched, TotalAmountByUser]]
-    } yield new AggregationProcessor(appConfig.consumer, totalAmountByCountryStore, totalAmountByUserStore)).toLayer
+    } yield new AggregationProcessor(
+      appConfig.consumer,
+      consumer,
+      totalAmountByCountryStore,
+      totalAmountByUserStore
+    )).toLayer
 }

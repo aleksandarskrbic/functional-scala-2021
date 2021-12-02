@@ -1,23 +1,25 @@
 package ingestion.service.http
 
-import zhttp.service.Server
-import zio.kafka.producer.Producer
-import ingestion.service.config.AppConfig
-import ingestion.service.http.routes.{HealthCheckRoutes, IngestionRoutes}
-import zio.ZIO
+import zio._
 import zio.blocking.Blocking
+import zhttp.service.Server
+import ingestion.service.config.AppConfig
+import ingestion.service.http.routes.{HealthCheck, Ingestion}
 
-class HttpServer(appConfig: AppConfig) {
-  private val httpConfig = appConfig.http
-  private val producerConfig = appConfig.producer
-  private val producerManaged = Producer.make(producerConfig.toProducerSettings)
-
+class HttpServer(
+    httpConfig: AppConfig.Http,
+    ingestionRoutes: Ingestion
+) {
   def start(): ZIO[Blocking, Throwable, Nothing] =
-    producerManaged.use { producer =>
-      val ingestionRoutes = new IngestionRoutes(producer, producerConfig).routes
-      Server.start(
-        httpConfig.port,
-        HealthCheckRoutes.routes +++ ingestionRoutes
-      )
-    }
+    Server.start(
+      httpConfig.port,
+      HealthCheck.routes +++ ingestionRoutes.routes
+    )
+}
+
+object HttpServer {
+  lazy val live = (for {
+    appConfig <- ZIO.service[AppConfig]
+    ingestionRoutes <- ZIO.service[Ingestion]
+  } yield new HttpServer(appConfig.http, ingestionRoutes)).toLayer
 }

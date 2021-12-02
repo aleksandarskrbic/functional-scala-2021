@@ -3,10 +3,7 @@ package aggregation.service.store
 import zio._
 
 sealed abstract class Store[Key, Event, Aggregate] {
-  type ErrorMessage = String
-
   def find(key: Key): UIO[Option[Aggregate]]
-
   def append(key: Key, event: Event): UIO[Unit]
 }
 

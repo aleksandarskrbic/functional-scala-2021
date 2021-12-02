@@ -4,7 +4,7 @@ import zio.json._
 import protocol.TransactionEnriched.TransactionEnriched
 
 object TotalAmountByUserStore {
-  final case class TotalAmountByUser(userId: Long, totalAmount: BigDecimal)
+  case class TotalAmountByUser(userId: Long, totalAmount: BigDecimal)
 
   implicit val encoder = DeriveJsonEncoder.gen[TotalAmountByUser]
 

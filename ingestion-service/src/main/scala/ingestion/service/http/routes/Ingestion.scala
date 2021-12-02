@@ -8,23 +8,22 @@ import zio.json._
 import zio.kafka.producer.Producer
 import zio.kafka.serde._
 
-final class IngestionRoutes(
+class Ingestion(
     producer: Producer,
     producerConfig: AppConfig.Producer
 ) {
-  val routes = Http.collectM[Request] {
-    case req @ Method.POST -> Root / "ingestion" / "push-event" =>
-      extractBodyOrFail(req) { transactionRaw =>
-        producer
-          .produceAsync(
-            producerConfig.topic,
-            transactionRaw.userId,
-            transactionRaw.toJsonPretty,
-            Serde.long,
-            Serde.string
-          )
-          .as(Response.ok)
-      }
+  val routes = Http.collectM[Request] { case req @ Method.POST -> Root / "ingestion" / "push-event" =>
+    extractBodyOrFail(req) { transactionRaw =>
+      producer
+        .produceAsync(
+          producerConfig.topic,
+          transactionRaw.userId,
+          transactionRaw.toJsonPretty,
+          Serde.long,
+          Serde.string
+        )
+        .as(Response.ok)
+    }
   }
 
   private def extractBodyOrFail(
@@ -39,4 +38,11 @@ final class IngestionRoutes(
         }
       case None => ZIO.succeed(Response.http(status = Status.BAD_REQUEST))
     }
+}
+
+object Ingestion {
+  lazy val live = (for {
+    appConfig <- ZIO.service[AppConfig]
+    producer <- ZIO.service[Producer]
+  } yield new Ingestion(producer, appConfig.producer)).toLayer
 }

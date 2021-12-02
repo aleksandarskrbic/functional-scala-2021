@@ -4,7 +4,7 @@ import zio.json.DeriveJsonCodec
 import protocol.Country.Country
 
 object EnrichmentPayload {
-  final case class EnrichmentPayload(
+  case class EnrichmentPayload(
       capital: List[String],
       region: String,
       subregion: String,

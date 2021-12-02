@@ -25,8 +25,15 @@ class EnrichmentService(
         error => ZIO.fail(error.toString),
         parsed => ZIO.succeed(parsed.head)
       )
-    } yield result).orElseFail("Unable to fetch coutry details")
+    } yield result).orElseFail("Unable to fetch country details")
 
   private def urlOf(countryName: String): Uri =
     uri"${enrichmentConfig.url}$countryName"
+}
+
+object EnrichmentService {
+  lazy val live = (for {
+    appConfig <- ZIO.service[AppConfig]
+    httpClient <- ZIO.service[SttpBackend[Task, ZioStreams with WebSockets]]
+  } yield new EnrichmentService(appConfig.enrichment, httpClient)).toLayer
 }
